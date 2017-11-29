@@ -4,6 +4,7 @@
 To change between these modes, there are some lines of code to modify:
 1) Lines 154 and 155 of source/connectivity_test.c
 2) Lines 203 to 208 of source/gen_fsk_tests.c
+
 Comment/uncomment the lines corresponding to the mode you want to use.
 
 ## Server functions
