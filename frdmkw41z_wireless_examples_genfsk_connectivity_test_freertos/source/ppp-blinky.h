@@ -1,10 +1,8 @@
 /// ppp-blinky.h
-#ifndef PPPBLINKY_H
-#define PPPBLINKY_H
 
-#include "stdint.h"
+#include "sha1.h"
 
-void initializePpp(uint8_t serial);
+void initializePpp();
 int connectedPpp();
 void waitForPcConnectString();
 void waitForPppFrame();
@@ -169,6 +167,8 @@ typedef struct pppType {
     struct {
         unsigned int ident; // our IP ident value (outgoing frame count)
     } ipData; // ip related object
-} pppType;
+} pppVariables;
 
-#endif /* PPP-BLINY_H */
+void t_print(int i, char* process);
+void l_off(void);void l_on(void);
+void led_flash(void);

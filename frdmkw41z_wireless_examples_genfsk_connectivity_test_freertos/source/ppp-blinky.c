@@ -91,52 +91,17 @@ RawSerial xx(p9, p10); // change this to YOUR board second serial port pin defin
 
 // this is the webpage we serve when we get an HTTP request to root (/)
 // keep size under ~900 bytes to fit into a single PPP packet
-
-//Original webpage:
-//const static char rootWebPage[] = "\
-//<!DOCTYPE html>\
-//<html>\
-//<head>\
-//<title>mbed PPP-Blinky</title>\r\n\
-//<script>\r\n\
-//window.onload=function(){\
-//setInterval(function(){function x(){return document.getElementById('w');};\
-//x().textContent=parseInt(x().textContent)+1;},100);};\r\n\
-//</script>\r\n\
-//</head>\
-//<body style=\"font-family: sans-serif; font-size:20px; text-align:center; color:#807070\">\
-//<h1>mbed PPP-Blinky Up and Running</h1>\
-//<h1 id=\"w\">0</h1>\
-//<h1><a href=\"http://bit.ly/pppBlink2\">Source on mbed</a></h1>\
-//<h1><a href=\"/ws\">WebSocket Demo</a></h1>\
-//<h1><a href=\"/x\">Benchmark 1</a></h1>\
-//<h1><a href=\"/xb\">Benchmark 2</a></h1>\
-//<h1><a href=\"http://jsfiddle.net/d26cyuh2/\">JSFiddle Demo</a></h1>\
-//</body>\
-//</html>\r\n"; // size = 644 bytes plus 1 null byte = 645 bytes
-
-// this is a websocket demo html page we serve when GET /ws is requested
-const static char rootWebPage[] = "\
-<!DOCTYPE html>\
-<html>\
-<head>\
-<title>COMP3215 Lab 2</title>\
-<script>\
-window.onload=function(){\
- var sts=document.getElementById(\"sts\");\
- var btn=document.getElementById(\"btn\");\
- function show(text){sts.textContent=text;}\
- btn.onclick=function(){\
- window.location.href = \"\"\
- };\
-};\
-</script>\
-<body style=\"font-family: Courier; font-size:25px; background-color:#000000; color:#00FF00\">\
-<h1>COMP3215 Lab 2 Page</h1>\
-<button id=\"btn\" style=\"font-family: Courier; font-size:25px; background-color:#00FF00; color:#000000; border: none; font-size: 100%; margin-top: 55px; margin-bottom: 55px;\">Blink</button>\
-<p style=\"font-family: Courier; font-size:12px; background-color:#000000; color:#00FF00\"><br/>Based on the PPP-Blinky WebSocket Test</p>\
-</body>\
-</html>"; // size = 916 bytes + 1 null byte = 917 bytes
+char body[] = \
+            "<html>\
+                    <head><title>A simple Web Server</title></head>\
+                    <body>\
+                        <h1>COMP3215</h1>\
+                        <form action=\"\" method=\"post\">\
+                            <button name=\"button\" value='1' disable=\"disable\">LED ON</button>\
+                            <button name=\"button\" value='0' disable=\"disable\">LED OFF</button>\
+                        </form>\
+                    </body>\
+            </html>";
 
 // The serial port on your mbed hardware. Your PC should be configured to view this port as a standard dial-up networking modem.
 // On Windows the model type of the modem should be selected as "Communications cable between two computers"
@@ -257,7 +222,7 @@ void dumpPPPFrame()
 /// Process a received PPP frame
 void processPPPFrame(int start, int end)
 {
-   
+
     if(start==end) {
         return; // empty frame
     }
@@ -800,17 +765,24 @@ int httpResponse(char * dataStart, int * flags)
 
     int nHeader; // byte size of HTTP header
     int contentLengthStart; // index where HTML starts
-    int httpGetRoot; // temporary storage of strncmp results
+    int httpGet5,httpGet6,httpGetx, httpGetRoot;
+    int httpGetLedOff,httpGetLedOn; // temporary storage of strncmp results
     *flags = TCP_FLAG_ACK | TCP_FLAG_FIN; // the default case is that we close the connection
 
     httpGetRoot = strncmp(dataStart, "GET / HTTP/1.", 13);  // found a GET to the root directory
+    httpGetx    = strncmp(dataStart, "GET /x", 6);          // found a GET to /x which we will treat special (anything starting with /x, e.g. /x, /xyz, /xABC?pqr=123
+    httpGet5    = dataStart[5]; // the first character in the path name, we use it for special functions later on
+    httpGet6    = dataStart[6]; // the second character in the path name, we use it for special functions later on
+    httpGetLedOff  = strncmp(dataStart,"button=0",9);
+    httpGetLedOn  = strncmp(dataStart,"button=1",9);
 
     // for example, you could try this using netcat (nc):    echo "GET /x" | nc 172.10.10.2
-    if( (httpGetRoot==0) ) {
+    if( (httpGetRoot==0) || (httpGetx==0) ) {
         n=n+sprintf(n+dataStart,"HTTP/1.1 200 OK\r\nServer: mbed-PPP-Blinky-v1\r\n"); // 200 OK header
     } else {
         n=n+sprintf(n+dataStart,"HTTP/1.1 404 Not Found\r\nServer: mbed-PPP-Blinky\r\n"); // 404 header
     }
+
     n=n+sprintf(n+dataStart,"Content-Length: "); // http header
     contentLengthStart = n; // remember where Content-Length is in buffer
     n=n+sprintf(n+dataStart,"?????\r\n"); // leave five spaces for content length - will be updated later
@@ -818,24 +790,48 @@ int httpResponse(char * dataStart, int * flags)
     n=n+sprintf(n+dataStart,"Content-Type: text/html; charset=us-ascii\r\n\r\n"); // http header must end with empty line (\r\n)
     nHeader=n; // size of HTTP header
     
-    if( httpGetRoot == 0 )
-    {
-		// this is where we insert our web page into the buffer
-		memcpy(n+dataStart,rootWebPage,sizeof(rootWebPage));
-		n = n + sizeof(rootWebPage)-1; // one less than sizeof because we don't count the null byte at the end
-		*flags = TCP_FLAG_ACK | TCP_FLAG_PSH; // for a websocket page we do NOT close the connection
+    if( httpGetRoot == 0 ) {
+        // this is where we insert our web page into the buffer
+        memcpy(n+dataStart,body,sizeof(body));
+        n = n + sizeof(body)-1; // one less than sizeof because we don't count the null byte at the end
 
-		static uint16_t ledState = 0;
-		ledState = ledState ? 0 : 1;
-		CT_PacketErrorRate(gCtEvtTxDone_c, gCtEvtSelfEvent_c,ledState);
-		Led3Toggle();
+    } else if ( (httpGet5 == 'w') && (httpGet6 == 's') ) { // "ws" is a special page for websocket demo
+        memcpy(n+dataStart,body,sizeof(body));
+        n = n + sizeof(body)-1; // one less than size
+        *flags = TCP_FLAG_ACK | TCP_FLAG_PSH; // for a websocket page we do NOT close the connection
+        Led1Toggle();
     }
-    else
-    {
-		// all other requests get 404 Not Found response with a http frame count - nice for debugging
-		n=n+sprintf(n+dataStart,"<!DOCTYPE html><title>mbed PPP-Blinky</title>"); // html title (required element)
-		n=n+sprintf(n+dataStart,"<body>Not Found</body>"); // not found message
+
+    else {
+        if (httpGetx == 0) { // the page request started with "GET /x" - here we treat anything starting with /x special:
+#define W3C_COMPLIANT_RESPONSE_NO
+// change the above to W3C_COMPLIANT_RESPONSE_YES if you want a W3C.org compliant HTTP response
+#ifdef W3C_COMPLIANT_RESPONSE_YES
+            n=n+sprintf(n+dataStart,"<!DOCTYPE html><title>mbed PPP-Blinky</title>"); // html title (W3C.org required elements)
+            n=n+sprintf(n+dataStart,"<body>%d</body>",ppp.responseCounter); // body = the http frame count
+#else
+            if( httpGet6 == 'b' ) { // if the fetched page is "xb" send a meta command to let the browser continuously reload
+                n=n+sprintf(n+dataStart, "<meta http-equiv=\"refresh\" content=\"0\">"); // reload loop - handy for benchmarking
+            }
+            // /x is a very short page, in fact, it is only a decimal number showing the http Page count
+            n=n+sprintf(n+dataStart,"%d ",ppp.responseCounter); // not really valid html but most browsers and curl are ok with it
+#endif
+        } else {
+            // all other requests get 404 Not Found response with a http frame count - nice for debugging
+            n=n+sprintf(n+dataStart,"<!DOCTYPE html><title>mbed PPP-Blinky</title>"); // html title (required element)
+            n=n+sprintf(n+dataStart,"<body>Not Found</body>"); // not found message
+        }
     }
+    //add
+    if(httpGetLedOn !=0)
+     {
+         Led1On();
+     }
+
+    if(httpGetLedOff !=0)
+     {
+    	Led1Off();
+     }
 #define CONTENTLENGTHSIZE 5
     char contentLengthString[CONTENTLENGTHSIZE+1];
     snprintf(contentLengthString,CONTENTLENGTHSIZE+1,"%*d",CONTENTLENGTHSIZE,n-nHeader); // print Content-Length with leading spaces and fixed width equal to csize
@@ -948,7 +944,7 @@ void tcpHandler()
                 dataLen = httpResponse(tcpDataOut, &flagsOut); // send an http response
             } else {
 //                dataLen = tcpResponse(tcpDataOut,tcpDataSize, &flagsOut); // not an http GET, handle as a tcp connection
-            	dataLen = 0;
+               dataLen = 0;
                 if (dataLen > 0) flagsOut = TCP_FLAG_ACK | TCP_FLAG_PSH; // if we have any data set the PSH flag
             }
             break;
@@ -1133,30 +1129,7 @@ void sniff()
 /// scan the PPP serial input stream for frame start markers
 void waitForPppFrame()
 {
-//    while(1) {
-//	bool_t hasData = false;
-//	do {
-////        sendUdpData(); // handle received characters from the DEBUG TERMINAL
-//        if ( ppp.rx.head != ppp.rx.tail ) {
-//        	hasData = true;
-//            int oldTail = ppp.rx.tail; // remember where the character is located in the buffer
-//            int rx = pc_getBuf(); // get the character
-//            if (rx==FRAME_7E) {
-//                if (ppp.firstFrame) { // is this the start of the first frame start
-//                    ppp.rx.rtail = ppp.rx.tail; // update real-time tail with the virtual tail
-//                    ppp.hdlc.frameStartIndex = ppp.rx.tail; // remember where first frame started
-//                    ppp.firstFrame=0; // clear first frame flag
-//                }  else {
-//                    ppp.hdlc.frameEndIndex=oldTail; // mark the frame end character
-//                    processPPPFrame(ppp.hdlc.frameStartIndex, ppp.hdlc.frameEndIndex); // process the frame
-//                    ppp.rx.rtail = ppp.rx.tail; // update real-time tail with the virtual tail
-//                    ppp.hdlc.frameStartIndex = ppp.rx.tail; // remember where next frame started
-////                    break;
-//                    hasData = false;
-//                }
-//            }
-//        }
-//    } while(hasData);
+	//No.
 }
 
 /// PPP serial port receive interrupt handler.
