@@ -1,13 +1,19 @@
-# COMP3215-Lab-3
+# COMP3215 Lab 3
 
-## Changing between transmitter (Tx, also the server) and receiver
-To change between these modes, there are some lines of code to modify:
-1) Lines 154 and 155 of source/connectivity_test.c
-2) Lines 203 to 208 of source/gen_fsk_tests.c
+A mesh network was implemented using the Generic FSK work from lab 2.
 
-Comment/uncomment the lines corresponding to the mode you want to use.
+## Programming the server and other nodes
 
-## Server functions
-This works the same way as PPP-Blinky (https://os.mbed.com/users/nixnax/code/PPP-Blinky/)
+There are separate folders for programming servers and nodes. Use the folder corresponding to the role you want to program. Also, when using multiple other nodes, make sure the address at the top of gen_fsk_tests.c is between 1 and 5 and unique to that board. The buttons on the server page are labelled 1-5 and should control the node with that address.
 
-Set up a dial-up connection (https://os.mbed.com/users/nixnax/code/PPP-Blinky/wiki/Configuring-Windows-Dial-Up-Networking for Windows) then go to 172.10.10.2 and you should get to the page stored in the board.
+## Server
+
+Based on PPP-Blinky (https://os.mbed.com/users/nixnax/code/PPP-Blinky/)
+
+Set up a dial-up connection (https://os.mbed.com/users/nixnax/code/PPP-Blinky/wiki/Configuring-Windows-Dial-Up-Networking for Windows) then go to 172.10.10.2 and you should get to the page stored in the server.
+
+## Progress
+
+Working mesh network implemented but no acknowledgements are sent. Boards that can't be controlled are not indicated in any way.
+
+The connection is also somewhat unreliable and it may take multiple button presses to toggle a node.
